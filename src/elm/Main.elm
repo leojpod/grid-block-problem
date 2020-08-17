@@ -111,7 +111,8 @@ computeGroups board =
 
 
 type alias State =
-    { board : Board
+    { --| in a more complete application this would turn to a RemoteData
+      board : Board
     , groups : List Group
     }
 
@@ -339,7 +340,7 @@ boardLineView config groups { selected, hovered } x line =
         List.indexedMap
             (\y cell ->
                 td
-                    (class "w-12 h-12 text-center align-middle "
+                    (class "w-12 h-12 text-center align-middle transition-colors duration-700 "
                         :: (if cell == Fill then
                                 let
                                     isHovered =
