@@ -1,10 +1,12 @@
 module Main exposing (Board, Cell(..), Group, computeGroups, main)
 
 import Browser
-import Html exposing (Html, div, span, table, td, text, tr)
+import Html exposing (Html, div, table, td, text, tr)
 import Html.Attributes exposing (class)
-import Html.Attributes.Extra
+import Html.Events exposing (onClick, onMouseEnter, onMouseLeave)
+import Html.Extra
 import List
+import List.Extra
 import Random
 
 
@@ -108,9 +110,23 @@ computeGroups board =
         |> List.sort
 
 
-type alias Model =
+type alias State =
     { board : Board
     , groups : List Group
+    }
+
+
+type alias UIState =
+    { selected : Maybe Point
+    , hovered : Maybe Group
+    }
+
+
+type alias Model =
+    { state :
+        State
+    , uiState :
+        UIState
     }
 
 
@@ -126,8 +142,11 @@ type alias Flags =
 
 init : Flags -> ( Model, Cmd Msg )
 init _ =
-    ( { board = []
-      , groups = []
+    ( { state =
+            { board = []
+            , groups = []
+            }
+      , uiState = { selected = Nothing, hovered = Nothing }
       }
     , generateBoard 10
     )
@@ -141,17 +160,49 @@ init _ =
 
 type Msg
     = NewBoard Board
+    | SelectCell Point
+    | HoverGroupFor Point
+    | ResetHover
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
-update msg model =
+update msg ({ state, uiState } as model) =
     case msg of
         NewBoard newBoard ->
             ( { model
-                | board = newBoard
-
-                -- TODO re-render the groups here
+                | state =
+                    { state
+                        | board = newBoard
+                        , groups = computeGroups newBoard
+                    }
+                , uiState = { uiState | selected = Nothing, hovered = Nothing }
               }
+            , Cmd.none
+            )
+
+        SelectCell selected ->
+            ( { model
+                | uiState =
+                    { uiState
+                        | selected = Just selected
+                    }
+              }
+            , Cmd.none
+            )
+
+        HoverGroupFor point ->
+            List.Extra.find (List.member point) state.groups
+                --| Note: Usually I'd use a lot of Maybe.Extra.unwrap instead of sequences of Maybe.map followed by Maybe.withDefault
+                |> Maybe.map
+                    (\group ->
+                        ( { model | uiState = { uiState | hovered = Just group } }
+                        , Cmd.none
+                        )
+                    )
+                |> Maybe.withDefault ( model, Cmd.none )
+
+        ResetHover ->
+            ( { model | uiState = { uiState | hovered = Nothing } }
             , Cmd.none
             )
 
@@ -171,7 +222,7 @@ view : Model -> Browser.Document Msg
 view model =
     { title = "Quick Elm Demo"
     , body =
-        [ div [ class "flex flex-col items-center justify-center min-h-screen text-6xl" ]
+        [ div [ class "flex flex-col items-center justify-center min-h-screen text-xl" ]
             [ boardView model
             ]
         ]
@@ -179,20 +230,46 @@ view model =
 
 
 boardView : Model -> Html Msg
-boardView { board, groups } =
-    table [ class "table-fixed" ] <|
-        List.map (boardLineView groups) board
+boardView { state, uiState } =
+    table [ class "table-fixed", onClick ResetHover ] <|
+        List.indexedMap (boardLineView state.groups uiState) state.board
 
 
-boardLineView : List Group -> List Cell -> Html Msg
-boardLineView groups line =
+boardLineView : List Group -> UIState -> Int -> List Cell -> Html Msg
+boardLineView groups { selected, hovered } x line =
     tr [] <|
-        List.map
-            (\cell ->
+        List.indexedMap
+            (\y cell ->
                 td
-                    [ Html.Attributes.Extra.attributeIf (cell == Fill) <| class "bg-red-400"
-                    , class "w-12 h-12"
+                    (class "w-12 h-12 text-center align-middle "
+                        :: (if cell == Fill then
+                                let
+                                    isHovered =
+                                        Maybe.map (List.member ( x, y )) hovered
+                                            |> Maybe.withDefault False
+                                in
+                                [ if isHovered then
+                                    class "bg-green-500"
+
+                                  else
+                                    class "bg-red-400"
+                                , onClick <| SelectCell ( x, y )
+                                , onMouseEnter <| HoverGroupFor ( x, y )
+                                , onMouseLeave ResetHover
+                                ]
+
+                            else
+                                []
+                           )
+                    )
+                    [ Html.Extra.viewIf (selected == Just ( x, y )) <|
+                        (groups
+                            |> List.Extra.find (List.member ( x, y ))
+                            |> Maybe.map List.length
+                            |> Maybe.withDefault 0
+                            |> String.fromInt
+                            |> text
+                        )
                     ]
-                    []
             )
             line
