@@ -1,7 +1,7 @@
 {
-  "name": "elm-tailwindcss-postcss-parcel-starter",
+  "name": "grid-block-problem",
   "version": "1.0.0",
-  "description": "a quick starter for simple elm project with parcel, tailwindcss (via postcss) and parcel",
+  "description": "a quick stab at a grid problem",
   "main": "index.js",
   "scripts": {
     "start": "parcel src/index.html",
