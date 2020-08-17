@@ -31,7 +31,7 @@ jobs:
       run: |
         npm install 
         npm run css:build 
-        npm build
+        npm run build
     
     # send that to GH-pages
     - name: Publish generated content to GitHub Pages
