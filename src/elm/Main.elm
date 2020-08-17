@@ -1,9 +1,9 @@
 module Main exposing (Board, Cell(..), Group, computeGroups, main)
 
 import Browser
-import Html exposing (Html, div, table, td, text, tr)
-import Html.Attributes exposing (class)
-import Html.Events exposing (onClick, onMouseEnter, onMouseLeave)
+import Html exposing (Html, div, input, label, span, table, td, text, tr)
+import Html.Attributes exposing (class, max, min, style, type_, value)
+import Html.Events exposing (onClick, onInput, onMouseEnter, onMouseLeave)
 import Html.Extra
 import List
 import List.Extra
@@ -122,8 +122,18 @@ type alias UIState =
     }
 
 
+type alias Config =
+    { boardSize : Int
+    , colours :
+        { group : String
+        , hover : String
+        }
+    }
+
+
 type alias Model =
-    { state :
+    { config : Config
+    , state :
         State
     , uiState :
         UIState
@@ -142,7 +152,14 @@ type alias Flags =
 
 init : Flags -> ( Model, Cmd Msg )
 init _ =
-    ( { state =
+    ( { config =
+            { boardSize = 10
+            , colours =
+                { group = "#fc8181"
+                , hover = "#48bb78"
+                }
+            }
+      , state =
             { board = []
             , groups = []
             }
@@ -159,15 +176,67 @@ init _ =
 
 
 type Msg
-    = NewBoard Board
+    = NoOp
+    | GenerateNewBoard Int
+    | NewBoard Board
     | SelectCell Point
     | HoverGroupFor Point
     | ResetHover
+    | UpdateGroupColour String
+    | UpdateHoverColour String
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
-update msg ({ state, uiState } as model) =
+update msg ({ config, state, uiState } as model) =
     case msg of
+        NoOp ->
+            ( model, Cmd.none )
+
+        UpdateHoverColour colour ->
+            let
+                colours =
+                    config.colours
+            in
+            ( { model
+                | config =
+                    { config
+                        | colours =
+                            { colours
+                                | hover = colour
+                            }
+                    }
+              }
+            , Cmd.none
+            )
+
+        UpdateGroupColour colour ->
+            let
+                colours =
+                    config.colours
+            in
+            ( { model
+                | config =
+                    { config
+                        | colours =
+                            { colours
+                                | group = colour
+                            }
+                    }
+              }
+            , Cmd.none
+            )
+
+        GenerateNewBoard size ->
+            ( { model
+                | config = { config | boardSize = size }
+
+                -- NOTE since we're gonna have to rewrite the whole state whenever we need to generate a new board, we may as well override the entire state not just the props to make sure that if we add something to the state, this line would have to take care of it as well
+                , state = { board = [], groups = [] }
+                , uiState = { uiState | selected = Nothing, hovered = Nothing }
+              }
+            , generateBoard size
+            )
+
         NewBoard newBoard ->
             ( { model
                 | state =
@@ -222,21 +291,50 @@ view : Model -> Browser.Document Msg
 view model =
     { title = "Quick Elm Demo"
     , body =
-        [ div [ class "flex flex-col items-center justify-center min-h-screen text-xl" ]
-            [ boardView model
+        [ div [ class "flex flex-col items-center justify-between min-h-screen text-xl" ]
+            [ toolbar model.config
+            , spacer
+            , boardView model
+            , spacer
             ]
         ]
     }
 
 
+toolbar : Config -> Html Msg
+toolbar { boardSize, colours } =
+    div [ class "flex flex-col w-full p-8 text-white bg-blue-600 bg-opacity-75 md:flex-row" ]
+        [ label [ class "flex flex-row items-center font-semibold md:w-1/2 space-x-8" ]
+            [ span [] [ text "Board size:" ]
+            , input [ type_ "range", Html.Attributes.min "0", Html.Attributes.max "20", value <| String.fromInt boardSize, onInput <| (String.toInt >> Maybe.map GenerateNewBoard >> Maybe.withDefault NoOp) ] []
+            , span []
+                [ text <| String.fromInt boardSize ++ "x" ++ String.fromInt boardSize
+                ]
+            ]
+        , label [ class "flex flex-row items-center font-semibold md:w-1/4 space-x-8" ]
+            [ span [] [ text "Group colour: " ]
+            , input [ type_ "color", value colours.group, onInput UpdateGroupColour ] []
+            ]
+        , label [ class "flex flex-row items-center font-semibold md:w-1/4 space-x-8" ]
+            [ span [] [ text "Hover colour: " ]
+            , input [ type_ "color", value colours.hover, onInput UpdateHoverColour ] []
+            ]
+        ]
+
+
+spacer : Html Msg
+spacer =
+    div [ class "flex" ] []
+
+
 boardView : Model -> Html Msg
-boardView { state, uiState } =
+boardView { config, state, uiState } =
     table [ class "table-fixed", onClick ResetHover ] <|
-        List.indexedMap (boardLineView state.groups uiState) state.board
+        List.indexedMap (boardLineView config state.groups uiState) state.board
 
 
-boardLineView : List Group -> UIState -> Int -> List Cell -> Html Msg
-boardLineView groups { selected, hovered } x line =
+boardLineView : Config -> List Group -> UIState -> Int -> List Cell -> Html Msg
+boardLineView config groups { selected, hovered } x line =
     tr [] <|
         List.indexedMap
             (\y cell ->
@@ -249,10 +347,10 @@ boardLineView groups { selected, hovered } x line =
                                             |> Maybe.withDefault False
                                 in
                                 [ if isHovered then
-                                    class "bg-green-500"
+                                    style "background-color" config.colours.hover
 
                                   else
-                                    class "bg-red-400"
+                                    style "background-color" config.colours.group
                                 , onClick <| SelectCell ( x, y )
                                 , onMouseEnter <| HoverGroupFor ( x, y )
                                 , onMouseLeave ResetHover
