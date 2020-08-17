@@ -1,8 +1,9 @@
 module Main exposing (main)
 
 import Browser
-import Html exposing (div, span, text)
+import Html exposing (Html, div, span, table, td, text, tr)
 import Html.Attributes exposing (class)
+import Html.Attributes.Extra
 
 
 main : Program Flags Model Msg
@@ -15,8 +16,27 @@ main =
         }
 
 
+type Cell
+    = Empty
+    | Fill
+
+
+type alias Board =
+    List (List Cell)
+
+
+type alias Point =
+    ( Int, Int )
+
+
+type alias Group =
+    List Point
+
+
 type alias Model =
-    ()
+    { board : Board
+    , groups : List Group
+    }
 
 
 type alias Flags =
@@ -25,7 +45,11 @@ type alias Flags =
 
 init : Flags -> ( Model, Cmd Msg )
 init _ =
-    ( (), Cmd.none )
+    ( { board = []
+      , groups = []
+      }
+    , Cmd.none
+    )
 
 
 type Msg
@@ -45,11 +69,22 @@ subscriptions _ =
 
 
 view : Model -> Browser.Document Msg
-view _ =
+view model =
     { title = "Document Title"
     , body =
         [ div [ class "flex flex-col items-center justify-center min-h-screen text-6xl" ]
-            [ span [] [ text "🎉" ]
+            [ boardView model
             ]
         ]
     }
+
+
+boardView : Model -> Html Msg
+boardView { board, groups } =
+    table [ class "table-fixed" ] <|
+        List.map (boardLineView groups) board
+
+
+boardLineView : List Group -> List Cell -> Html Msg
+boardLineView groups line =
+    tr [] <| List.map (\cell -> td [ Html.Attributes.Extra.attributeIf (cell == Fill) <| class "bg-red" ] []) line
